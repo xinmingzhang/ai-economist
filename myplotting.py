@@ -48,7 +48,6 @@ def plot_map(maps, locs, ax=None, cmap_order=None):
             tmp += map_
         else:
             continue
-    print(tmp)
 
     if isinstance(maps, dict):
         house_idx = np.array(maps.get("House")["owner"])
