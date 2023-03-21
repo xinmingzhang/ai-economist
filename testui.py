@@ -117,68 +117,25 @@ class Ui_MainWindow(object):
         self.pushButton_1.setText(_translate("MainWindow", "选择文件"))
 
     def load_env(self):
-        # env_config = {
-        #     'scenario_name': 'layout_from_file/simple_wood_and_stone',
-        #     'components': [
-        #         ('Build', {'skill_dist': "pareto", 'payment_max_skill_multiplier': 3}),
-        #         ('ContinuousDoubleAuction', {'max_num_orders': 5}),
-        #         ('Gather', {}),
-        #     ],
-        #     'env_layout_file': 'my_map_sperate.txt',
-        #     'starting_agent_coin': 10,
-        #     'fixed_four_skill_and_loc': False,
-        #     'n_agents': 3,
-        #     'world_size': [15, 10],
-        #     'episode_length': 1000,
-        #     'multi_action_mode_agents': False,
-        #     'multi_action_mode_planner': True,
-        #     'flatten_observations': False,
-        #     'flatten_masks': True,
-        # }
         env_config = {
-            # ===== SCENARIO CLASS =====
-            # Which Scenario class to use: the class's name in the Scenario Registry (foundation.scenarios).
-            # The environment object will be an instance of the Scenario class.
             'scenario_name': 'layout_from_file/simple_wood_and_stone',
-
-            # ===== COMPONENTS =====
-            # Which components to use (specified as list of ("component_name", {component_kwargs}) tuples).
-            #   "component_name" refers to the Component class's name in the Component Registry (foundation.components)
-            #   {component_kwargs} is a dictionary of kwargs passed to the Component class
-            # The order in which components reset, step, and generate obs follows their listed order below.
             'components': [
-                # (1) Building houses
                 ('Build', {'skill_dist': "pareto", 'payment_max_skill_multiplier': 3}),
-                # (2) Trading collectible resources
                 ('ContinuousDoubleAuction', {'max_num_orders': 5}),
-                # (3) Movement and resource collection
                 ('Gather', {}),
             ],
-
-            # ===== SCENARIO CLASS ARGUMENTS =====
-            # (optional) kwargs that are added by the Scenario class (i.e. not defined in BaseEnvironment)
-            'env_layout_file': 'quadrant_25x25_20each_30clump.txt',
+            'env_layout_file': 'my_map_sperate.txt',
             'starting_agent_coin': 10,
-            'fixed_four_skill_and_loc': True,
-
-            # ===== STANDARD ARGUMENTS ======
-            # kwargs that are used by every Scenario class (i.e. defined in BaseEnvironment)
-            'n_agents': 4,  # Number of non-planner agents (must be > 1)
-            'world_size': [25, 25],  # [Height, Width] of the env world
-            'episode_length': 1000,  # Number of timesteps per episode
-
-            # In multi-action-mode, the policy selects an action for each action subspace (defined in component code).
-            # Otherwise, the policy selects only 1 action.
+            'fixed_four_skill_and_loc': False,
+            'n_agents': 3,
+            'world_size': [15, 10],
+            'episode_length': 1000,
             'multi_action_mode_agents': False,
             'multi_action_mode_planner': True,
-
-            # When flattening observations, concatenate scalar & vector observations before output.
-            # Otherwise, return observations with minimal processing.
             'flatten_observations': False,
-            # When Flattening masks, concatenate each action subspace mask into a single array.
-            # Note: flatten_masks = True is required for masking action logits in the code below.
             'flatten_masks': True,
         }
+
         self.env = foundation.make_env_instance(**env_config)
 
     # 嵌入matplotlib方法
@@ -196,42 +153,42 @@ class Ui_MainWindow(object):
         self.widget.setObjectName("matplotlib")
 
         # 初始化matplotlib显示区域
-        # self.ax = self.fig.subplots()
-        _, self.ax = plt.subplots(1, 1, figsize=(10, 10))
+
         self.load_env()
-        maps = self.env.world.maps
-        locs = [agent.loc for agent in self.env.world.agents]
-        world_size = np.array(maps.get("Wood")).shape
+
         max_health = {"Wood": 1, "Stone": 1, "House": 1}
-        n_agents = len(locs)
-        cmap_order = list(range(n_agents))
+        self.env.reset()
 
 
-        self.ax.cla()
+        scenario_entities = [k for k in self.env.world.maps.keys() if "source" not in k.lower()]
+
+        # plotting.plot_env_state(env)
+        locs = [agent.loc for agent in self.env.world.agents]
+
+
+        from ai_economist.foundation import landmarks, resources
+        maps = self.env.world.maps
+        world_size = np.array(maps.get("Wood")).shape
         tmp = np.zeros((3, world_size[0], world_size[1]))
-        cmap = plt.get_cmap("jet", n_agents)
 
-
-        scenario_entities = [k for k in maps.keys() if "source" not in k.lower()]
         for entity in scenario_entities:
             if entity == "House":
                 continue
             elif resources.has(entity):
                 if resources.get(entity).collectible:
-                    map_ = (
-                        resources.get(entity).color[:, None, None]
-                        * np.array(maps.get(entity))[None]
-                    )
+                    map_ = (resources.get(entity).color[:, None, None] * np.array(maps.get(entity))[None])
                     map_ /= max_health[entity]
                     tmp += map_
             elif landmarks.has(entity):
-                map_ = (
-                    landmarks.get(entity).color[:, None, None]
-                    * np.array(maps.get(entity))[None]
-                )
+                map_ = (landmarks.get(entity).color[:, None, None] * np.array(maps.get(entity))[None])
+                print(map_)
                 tmp += map_
             else:
                 continue
+
+        n_agents = len(locs)
+        cmap = plt.get_cmap("jet", n_agents)
+        cmap_order = list(range(n_agents))
 
         if isinstance(maps, dict):
             house_idx = np.array(maps.get("House")["owner"])
@@ -247,23 +204,21 @@ class Ui_MainWindow(object):
             map_ = col[:, None, None] * agent[None]
             tmp += map_
 
-
         tmp *= 0.7
         tmp += 0.3
 
         tmp = np.transpose(tmp, [1, 2, 0])
         tmp = np.minimum(tmp, 1.0)
 
-        self.ax.imshow(tmp, vmax=1, aspect="auto")
 
+        self.ax = self.fig.add_subplot(111)
+        self.ax.imshow(tmp, vmax=1.0, aspect="auto")
         bbox = self.ax.get_window_extent()
-
         for i in range(n_agents):
             r, c = locs[cmap_order[i]]
             col = np.array(cmap(i)[:3])
             self.ax.plot(c, r, "o", markersize=bbox.height * 20 / 550, color="w")
             self.ax.plot(c, r, "*", markersize=bbox.height * 15 / 550, color=col)
-
         self.ax.set_xticks([])
         self.ax.set_yticks([])
 
