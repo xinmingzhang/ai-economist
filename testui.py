@@ -65,6 +65,7 @@ class Ui_MainWindow(object):
         }
 
         self.env = foundation.make_env_instance(**env_config)
+        self.obs = self.env.reset()
 
     # 嵌入matplotlib方法
     def set_matplotlib(self):
@@ -89,9 +90,9 @@ class Ui_MainWindow(object):
 
     def set_drawing(self):
         max_health = {"Wood": 1, "Stone": 1, "House": 1}
-        self.env.reset()
 
 
+        self.ax.cla()
         scenario_entities = [k for k in self.env.world.maps.keys() if "source" not in k.lower()]
 
         # plotting.plot_env_state(env)
@@ -157,7 +158,7 @@ class Ui_MainWindow(object):
 
 
     def start_sim(self):
-        self.ax.cla()
+
         self.testTimer = QtCore.QTimer()
         self.testTimer.timeout.connect(self.plotfig)  # 调用绘图方法
         self.testTimer.start(10)
@@ -165,20 +166,23 @@ class Ui_MainWindow(object):
 
 # 绘图方法
     def plotfig(self):
-        print("0")
-        self.set_drawing()
-        print("1")
+        for t in range(self.env.episode_length):
+            actions = self.sample_random_actions(self.env, self.obs)
+            obs, rew, done, info = self.env.step(actions)
+            if ((t + 1) % 2) == 0:
+                self.set_drawing()
         self.testTimer.stop()
-        # self.ax.autoscale_view()
-        # # 绘图
-        # self.ax.plot(self.t_list, self.y_list, c=self.line_color, linewidth=1)
-        # self.fig.canvas.draw()  # 画布重绘，self.figs.canvas
-        # self.fig.canvas.flush_events()  # 画布刷新 self.figs.canvas
-        # self.t_list.append(self.t[self.i])  # 更新数据
-        # self.y_list.append(self.y[self.t[self.i]])  # 每次给原来数据加入新数据
-        # self.i += 10
-        # if self.i >= len(self.t):
-        #     self.testTimer.stop()
+
+    def sample_random_action(self,agent, mask):
+        if agent.multi_action_mode:
+            split_masks = np.split(mask, agent.action_spaces.cumsum()[:-1])
+            return [np.random.choice(np.arange(len(m_)), p=m_/m_.sum()) for m_ in split_masks]
+        else:
+            return np.random.choice(np.arange(agent.action_spaces), p=mask/mask.sum())
+
+    def sample_random_actions(self,env, obs):
+        actions = {a_idx: self.sample_random_action(self.env.get_agent(a_idx), a_obs['action_mask'])for a_idx, a_obs in obs.items()}
+        return actions
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
